@@ -5,19 +5,19 @@ namespace App\Http\Controllers\Inventory\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\Api\V1\StoreCategoryRequest;
 use App\Http\Requests\Inventory\Api\V1\UpdateCategoryRequest;
+use App\Http\Resources\Inventory\Api\V1\CategoryCollection;
 use App\Http\Resources\Inventory\Api\V1\CategoryResource;
 use App\Models\Inventory\Category;
 use App\Services\Inventory\CategoryService;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class CategoryController extends Controller
 {
     public function __construct(private readonly CategoryService $categoryService) {}
 
-    public function index(): AnonymousResourceCollection
+    public function index(): CategoryCollection
     {
-        return CategoryResource::collection($this->categoryService->paginate());
+        return new CategoryCollection($this->categoryService->paginate());
     }
 
     public function store(StoreCategoryRequest $request): CategoryResource
