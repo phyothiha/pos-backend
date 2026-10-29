@@ -4,12 +4,27 @@ namespace App\Services\Inventory;
 
 use App\Models\Inventory\Brand;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class BrandService
 {
+    public function all(): Collection
+    {
+        return Brand::query()->latest()->get();
+    }
+
     public function paginate(): LengthAwarePaginator
     {
-        return Brand::query()->orderBy('id')->paginate(15);
+        return Brand::query()->latest()->paginate(15);
+    }
+
+    public function search(string $name): LengthAwarePaginator
+    {
+        return Brand::query()
+            ->where('name', 'like', $name.'%')
+            ->orderBy('id')
+            ->paginate(1)
+            ->appends(['name' => $name]);
     }
 
     public function create(array $data): Brand

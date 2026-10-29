@@ -14,7 +14,6 @@ class Product extends Model
     /** @use HasFactory<ProductFactory> */
     use HasFactory;
 
-    /** @return array<string, string> */
     protected function casts(): array
     {
         return [
@@ -24,13 +23,11 @@ class Product extends Model
         ];
     }
 
-    /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    /** @return BelongsTo<Brand, $this> */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);

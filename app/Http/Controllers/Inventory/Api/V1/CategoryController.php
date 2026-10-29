@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\Api\V1\SearchInventoryRequest;
 use App\Http\Requests\Inventory\Api\V1\StoreCategoryRequest;
 use App\Http\Requests\Inventory\Api\V1\UpdateCategoryRequest;
 use App\Http\Resources\Inventory\Api\V1\CategoryCollection;
@@ -15,9 +16,19 @@ class CategoryController extends Controller
 {
     public function __construct(private readonly CategoryService $categoryService) {}
 
+    public function all(): CategoryCollection
+    {
+        return new CategoryCollection($this->categoryService->all());
+    }
+
     public function index(): CategoryCollection
     {
         return new CategoryCollection($this->categoryService->paginate());
+    }
+
+    public function search(SearchInventoryRequest $request): CategoryCollection
+    {
+        return new CategoryCollection($this->categoryService->search($request->validated('name')));
     }
 
     public function store(StoreCategoryRequest $request): CategoryResource

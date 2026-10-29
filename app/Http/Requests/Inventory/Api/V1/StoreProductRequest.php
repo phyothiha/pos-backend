@@ -28,8 +28,8 @@ class StoreProductRequest extends FormRequest
             'brand_id' => ['required', 'integer', 'exists:brands,id'],
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['required', 'string', 'max:100', 'unique:products,sku'],
-            'selling_price' => ['required', 'numeric', 'decimal:0,2', 'min:-9999999999999.99', 'max:9999999999999.99'],
-            'stock_quantity' => ['sometimes', 'integer', 'min:-2147483648', 'max:2147483647'],
+            'selling_price' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
+            'stock_quantity' => ['sometimes', 'integer', 'min:0'],
             'type' => ['sometimes', 'required', Rule::in(['in_stock', 'pre_order'])],
             'is_active' => ['required', 'boolean'],
         ];
