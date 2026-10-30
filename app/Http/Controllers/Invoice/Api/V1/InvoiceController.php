@@ -25,6 +25,6 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice): InvoiceResource
     {
-        return new InvoiceResource($invoice->load(['items', 'paymentPlatform']));
+        return new InvoiceResource($invoice->load(['items', 'paymentPlatform', 'deliveryStatusHistories.user']));
     }
 }

@@ -25,10 +25,15 @@ test('lists inventory history newest first with pagination and product filtering
     ]);
 
     $this->getJson(route('v1.inventory.movements.index', ['product_id' => $product->id, 'page' => 2]))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.total', 16)
-        ->assertJsonPath('data.0.product_id', $product->id)->assertJsonPath('data.0.user_name', $user->name);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.total', 16)
+        ->assertJsonPath('data.0.product_id', $product->id)
+        ->assertJsonPath('data.0.user_name', $user->name);
     $this->getJson(route('v1.inventory.movements.index'))
-        ->assertOk()->assertJsonCount(15, 'data')->assertJsonPath('meta.total', 17);
+        ->assertOk()
+        ->assertJsonCount(15, 'data')
+        ->assertJsonPath('meta.total', 17);
 });
 
 test('records opening stock when creating a product', function () {
@@ -37,7 +42,8 @@ test('records opening stock when creating a product', function () {
     $attributes = Product::factory()->make(['stock_quantity' => 12])->getAttributes();
 
     $response = $this->postJson(route('v1.inventory.products.store'), $attributes)
-        ->assertCreated()->assertJsonPath('data.stock_quantity', 12);
+        ->assertCreated()
+        ->assertJsonPath('data.stock_quantity', 12);
 
     $this->assertDatabaseHas(InventoryMovement::class, [
         'product_id' => $response->json('data.id'), 'type' => 'opening', 'quantity' => 12,
@@ -52,7 +58,8 @@ test('records stock receipts and adjustments from product edits', function (int 
 
     $this->patchJson(route('v1.inventory.products.update', $product), [
         'stock_quantity' => $quantity,
-    ])->assertOk()->assertJsonPath('data.stock_quantity', $quantity);
+    ])->assertOk()
+        ->assertJsonPath('data.stock_quantity', $quantity);
 
     $this->assertDatabaseHas(InventoryMovement::class, [
         'product_id' => $product->id, 'type' => $type, 'quantity' => $difference,
@@ -75,7 +82,8 @@ test('rejects invalid stock balances on product edits with 422', function (mixed
     $product = Product::factory()->create(['stock_quantity' => 10]);
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['stock_quantity' => $quantity])
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 10]);
     $this->assertDatabaseEmpty(InventoryMovement::class);
@@ -89,7 +97,8 @@ test('keeps inventory history when a product deletion is attempted', function ()
     ]);
 
     $this->deleteJson(route('v1.inventory.products.destroy', $movement->product_id))
-        ->assertUnprocessable()->assertJsonValidationErrors('product');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('product');
 
     $this->assertModelExists($movement);
     $this->assertModelExists($movement->product);
@@ -103,7 +112,8 @@ test('rejects an unknown history product filter with 422', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->getJson(route('v1.inventory.movements.index', ['product_id' => 999999]))
-        ->assertUnprocessable()->assertJsonValidationErrors('product_id');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('product_id');
 });
 
 test('seeds setup data without sample invoices or inventory movements', function () {
@@ -120,7 +130,8 @@ test('ignores supplied stock reasons and records automatic history', function (m
     $product = Product::factory()->create(['stock_quantity' => 10]);
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['stock_quantity' => 5, 'stock_reason' => $reason])
-        ->assertOk()->assertJsonPath('data.stock_quantity', 5);
+        ->assertOk()
+        ->assertJsonPath('data.stock_quantity', 5);
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 5]);
     $this->assertDatabaseHas(InventoryMovement::class, [

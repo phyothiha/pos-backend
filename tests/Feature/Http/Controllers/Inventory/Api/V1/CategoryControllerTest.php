@@ -35,7 +35,8 @@ test('creates a category', function () {
     $this->postJson(route('v1.inventory.categories.store'), [
         'name' => 'Sample Category',
         'description' => 'Sample description',
-    ])->assertCreated()->assertJsonPath('data.name', 'Sample Category');
+    ])->assertCreated()
+        ->assertJsonPath('data.name', 'Sample Category');
 
     $this->assertDatabaseHas(Category::class, ['name' => 'Sample Category']);
 });
@@ -57,7 +58,8 @@ test('updates a category', function () {
     $category = Category::factory()->create();
 
     $this->patchJson(route('v1.inventory.categories.update', $category), ['name' => 'Updated Category'])
-        ->assertOk()->assertJsonPath('data.name', 'Updated Category');
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Updated Category');
 
     $this->assertDatabaseHas(Category::class, ['id' => $category->id, 'name' => 'Updated Category']);
 });
@@ -76,7 +78,8 @@ test('requires a category name', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->postJson(route('v1.inventory.categories.store'), [])
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 
     $this->assertDatabaseEmpty(Category::class);
 });
@@ -87,7 +90,8 @@ test('rejects duplicate category names', function () {
     $category = Category::factory()->create();
 
     $this->postJson(route('v1.inventory.categories.store'), ['name' => $category->name])
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 
     $this->assertDatabaseCount(Category::class, 1);
 });
@@ -99,7 +103,8 @@ test('searches categories by name prefix', function () {
     Category::factory()->create(['name' => 'Banana']);
 
     $this->getJson(route('v1.inventory.categories.search', ['name' => 'App']))
-        ->assertOk()->assertJsonPath('data.*.name', ['Apple']);
+        ->assertOk()
+        ->assertJsonPath('data.*.name', ['Apple']);
 });
 
 test('returns 404 for an unknown category', function () {
@@ -124,5 +129,6 @@ test('requires a name for categories search', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->getJson(route('v1.inventory.categories.search'))
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 });

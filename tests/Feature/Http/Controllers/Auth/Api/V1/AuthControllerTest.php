@@ -18,20 +18,24 @@ test('logs in using a username and returns a usable JWT', function () {
 
     $response = $this->postJson(route('v1.auth.login'), ['username' => 'admin', 'password' => 'password']);
 
-    $response->assertOk()->assertJsonStructure(['access_token', 'token_type', 'expires_in'])
-        ->assertJsonPath('token_type', 'bearer')->assertJsonPath('expires_in', 3600)
+    $response->assertOk()
+        ->assertJsonStructure(['access_token', 'token_type', 'expires_in'])
+        ->assertJsonPath('token_type', 'bearer')
+        ->assertJsonPath('expires_in', 3600)
         ->assertJsonMissingPath('password');
     expect(Hash::check('password', $user->getRawOriginal('password')))->toBeTrue();
     resetJwtAuthentication();
     $this->withToken($response->json('access_token'))->getJson(route('v1.auth.me'))
-        ->assertOk()->assertExactJson(['data' => ['id' => $user->id, 'name' => 'Demo Admin', 'username' => 'admin']]);
+        ->assertOk()
+        ->assertExactJson(['data' => ['id' => $user->id, 'name' => 'Demo Admin', 'username' => 'admin']]);
 });
 
 test('returns 401 for invalid credentials without revealing account existence', function (string $username, string $password) {
     User::factory()->create(['username' => 'admin']);
 
     $this->postJson(route('v1.auth.login'), compact('username', 'password'))
-        ->assertUnauthorized()->assertExactJson(['message' => 'Invalid username or password.']);
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Invalid username or password.']);
     $this->assertDatabaseCount(User::class, 1);
 })->with([
     'incorrect password' => ['admin', 'incorrect'],
@@ -40,12 +44,14 @@ test('returns 401 for invalid credentials without revealing account existence', 
 
 test('returns 422 when login credentials are missing', function () {
     $this->postJson(route('v1.auth.login'), [])
-        ->assertUnprocessable()->assertJsonValidationErrors(['username', 'password']);
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['username', 'password']);
 });
 
 test('returns 422 for invalid login credential formats', function (array $credentials) {
     $this->postJson(route('v1.auth.login'), $credentials)
-        ->assertUnprocessable()->assertJsonValidationErrors(['username', 'password']);
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['username', 'password']);
 })->with([
     'non-string credentials' => [['username' => [], 'password' => []]],
     'oversized credentials' => [['username' => str_repeat('a', 256), 'password' => str_repeat('a', 256)]],
@@ -103,12 +109,14 @@ test('refreshes an expired access token and invalidates the original', function 
     resetJwtAuthentication();
 
     $response = $this->withToken($token)->postJson(route('v1.auth.refresh'))
-        ->assertOk()->assertJsonStructure(['access_token', 'token_type', 'expires_in']);
+        ->assertOk()
+        ->assertJsonStructure(['access_token', 'token_type', 'expires_in']);
 
     expect($response->json('access_token'))->not->toBe($token);
     resetJwtAuthentication();
     $this->withToken($response->json('access_token'))->getJson(route('v1.auth.me'))
-        ->assertOk()->assertJsonPath('data.id', $user->id);
+        ->assertOk()
+        ->assertJsonPath('data.id', $user->id);
     resetJwtAuthentication();
     $this->withToken($token)->postJson(route('v1.auth.refresh'))->assertUnauthorized();
 });
@@ -127,7 +135,8 @@ test('logs out and prevents reuse or refresh of the token', function () {
     resetJwtAuthentication();
 
     $this->withToken($token)->postJson(route('v1.auth.logout'))
-        ->assertOk()->assertExactJson(['message' => 'Successfully logged out.']);
+        ->assertOk()
+        ->assertExactJson(['message' => 'Successfully logged out.']);
 
     resetJwtAuthentication();
     $this->withToken($token)->getJson(route('v1.auth.me'))->assertUnauthorized();

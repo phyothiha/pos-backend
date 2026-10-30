@@ -14,7 +14,9 @@ test('lists products with pagination', function () {
     Product::factory()->count(16)->create();
 
     $this->getJson(route('v1.inventory.products.index', ['page' => 2]))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.total', 16);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.total', 16);
 });
 
 test('creates a product with its price in whole kyat', function () {
@@ -47,7 +49,9 @@ test('shows a product', function () {
     $product = Product::factory()->create(['selling_price' => 15000]);
 
     $this->getJson(route('v1.inventory.products.show', $product))
-        ->assertOk()->assertJsonPath('data.id', $product->id)->assertJsonPath('data.selling_price', 15000);
+        ->assertOk()
+        ->assertJsonPath('data.id', $product->id)
+        ->assertJsonPath('data.selling_price', 15000);
 });
 
 test('updates a product', function () {
@@ -59,7 +63,9 @@ test('updates a product', function () {
         'selling_price' => 20000,
         'stock_quantity' => 10,
         'is_active' => false,
-    ])->assertOk()->assertJsonPath('data.selling_price', 20000)->assertJsonPath('data.is_active', false);
+    ])->assertOk()
+        ->assertJsonPath('data.selling_price', 20000)
+        ->assertJsonPath('data.is_active', false);
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'selling_price' => 20000, 'stock_quantity' => 10]);
 });
@@ -90,9 +96,11 @@ test('rejects decimal and negative product prices', function () {
     $product = Product::factory()->create(['selling_price' => 15000]);
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['selling_price' => 15000.5])
-        ->assertUnprocessable()->assertJsonValidationErrors('selling_price');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('selling_price');
     $this->patchJson(route('v1.inventory.products.update', $product), ['selling_price' => -1])
-        ->assertUnprocessable()->assertJsonValidationErrors('selling_price');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('selling_price');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'selling_price' => 15000]);
 });
@@ -104,7 +112,8 @@ test('rejects duplicate product SKUs', function () {
     $other = Product::factory()->create();
 
     $this->patchJson(route('v1.inventory.products.update', $other), ['sku' => $product->sku])
-        ->assertUnprocessable()->assertJsonValidationErrors('sku');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('sku');
 
     $this->assertDatabaseHas(Product::class, ['id' => $other->id, 'sku' => $other->sku]);
 });
@@ -115,7 +124,8 @@ test('rejects unknown categories and brands', function () {
     $product = Product::factory()->create();
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['category_id' => 999999, 'brand_id' => 999999])
-        ->assertUnprocessable()->assertJsonValidationErrors(['category_id', 'brand_id']);
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['category_id', 'brand_id']);
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'category_id' => $product->category_id, 'brand_id' => $product->brand_id]);
 });
@@ -133,9 +143,13 @@ test('searches products by name or SKU', function () {
     $mouse = Product::factory()->create(['is_active' => true, 'stock_quantity' => 10, 'name' => 'Mouse', 'sku' => 'MS-001']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Keyboard']))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $keyboard->id);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $keyboard->id);
     $this->getJson(route('v1.inventory.products.search', ['q' => 'MS-001']))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $mouse->id);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $mouse->id);
 });
 
 test('returns at most ten product search results without pagination', function () {
@@ -158,14 +172,17 @@ test('excludes inactive products from name and SKU search results', function () 
     Product::factory()->create(['name' => 'Adapter', 'sku' => 'Keyboard-001', 'is_active' => false]);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Keyboard']))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->id);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $active->id);
 });
 
 test('requires a product search term', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->getJson(route('v1.inventory.products.search'))
-        ->assertUnprocessable()->assertJsonValidationErrors('q');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('q');
 });
 
 test('returns an empty list when no products match', function () {
@@ -174,7 +191,8 @@ test('returns an empty list when no products match', function () {
     Product::factory()->create(['name' => 'Keyboard', 'sku' => 'KB-001']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Mouse']))
-        ->assertOk()->assertExactJson(['data' => []]);
+        ->assertOk()
+        ->assertExactJson(['data' => []]);
 });
 
 test('search returns only active products with available quantity for either type', function (string $type) {
@@ -185,5 +203,7 @@ test('search returns only active products with available quantity for either typ
     Product::factory()->create(['is_active' => false, 'type' => $type, 'stock_quantity' => 10, 'name' => 'Phone Inactive']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Phone']))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $available->id);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $available->id);
 })->with(['in_stock', 'pre_order']);

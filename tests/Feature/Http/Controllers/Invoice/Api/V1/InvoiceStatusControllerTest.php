@@ -17,7 +17,9 @@ test('confirms an invoice and deducts stock once when retried', function () {
     $item = InvoiceItem::factory()->for($invoice)->for($product)->create(['quantity' => 3]);
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])
-        ->assertOk()->assertJsonPath('data.status', 'confirmed')->assertJsonPath('data.delivery_status', 'preparing')
+        ->assertOk()
+        ->assertJsonPath('data.status', 'confirmed')
+        ->assertJsonPath('data.delivery_status', 'preparing')
         ->assertJsonPath('data.payment_status', 'unpaid');
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])->assertOk();
 
@@ -38,7 +40,8 @@ test('rolls back all stock changes when any product has insufficient stock', fun
     InvoiceItem::factory()->for($invoice)->for($unavailable)->create(['quantity' => 2]);
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'draft', 'delivery_status' => 'pending']);
     $this->assertDatabaseHas(Product::class, ['id' => $available->id, 'stock_quantity' => 10]);
@@ -71,7 +74,9 @@ test('restores actual deductions once on cancellation even after product type ch
     $product->update(['type' => 'pre_order', 'is_active' => false]);
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'cancelled'])
-        ->assertOk()->assertJsonPath('data.status', 'cancelled')->assertJsonPath('data.delivery_status', 'cancelled')
+        ->assertOk()
+        ->assertJsonPath('data.status', 'cancelled')
+        ->assertJsonPath('data.delivery_status', 'cancelled')
         ->assertJsonPath('data.payment_status', 'paid');
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'cancelled'])->assertOk();
 
@@ -91,7 +96,8 @@ test('cancels a draft without adding stock and rejects reconfirming it', functio
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'cancelled'])->assertOk();
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])
-        ->assertUnprocessable()->assertJsonValidationErrors('status');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('status');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 10]);
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'cancelled']);
@@ -103,7 +109,8 @@ test('rejects cancellation after dispatch or completion with 422', function (str
     $invoice = Invoice::factory()->create(['status' => 'confirmed', 'delivery_status' => $deliveryStatus]);
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'cancelled'])
-        ->assertUnprocessable()->assertJsonValidationErrors('status');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('status');
 
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'confirmed', 'delivery_status' => $deliveryStatus]);
     $this->assertDatabaseEmpty(InventoryMovement::class);
@@ -114,7 +121,8 @@ test('rejects confirmation of an empty invoice with 422', function () {
     $invoice = Invoice::factory()->create();
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])
-        ->assertUnprocessable()->assertJsonValidationErrors('items');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('items');
 
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'draft']);
     $this->assertDatabaseEmpty(InventoryMovement::class);
@@ -127,7 +135,8 @@ test('rejects confirmation when a product becomes inactive with 422', function (
     InvoiceItem::factory()->for($invoice)->for($product)->create();
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'confirmed'])
-        ->assertUnprocessable()->assertJsonValidationErrors('items');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('items');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 10]);
     $this->assertDatabaseEmpty(InventoryMovement::class);
@@ -143,7 +152,8 @@ test('does not oversell when two invoices demand the same stock', function () {
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $first), ['status' => 'confirmed'])->assertOk();
     $this->patchJson(route('v1.inventory.invoices.status.update', $second), ['status' => 'confirmed'])
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 1]);
     $this->assertDatabaseHas(Invoice::class, ['id' => $second->id, 'status' => 'draft']);
@@ -155,10 +165,15 @@ test('validates invoice status with 422', function (array $payload) {
     $invoice = Invoice::factory()->create();
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), $payload)
-        ->assertUnprocessable()->assertJsonValidationErrors('status');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('status');
 
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'draft']);
-})->with([[[]], [['status' => 'draft']], [['status' => 'invalid']]]);
+})->with([
+    'missing status' => [[]],
+    'draft is not a transition' => [['status' => 'draft']],
+    'unknown status' => [['status' => 'invalid']],
+]);
 
 test('requires authentication to update invoice status', function () {
     $this->patchJson('/api/v1/inventory/invoices/1/status', ['status' => 'confirmed'])->assertUnauthorized();
@@ -184,7 +199,9 @@ test('confirms a mixed invoice and deducts both product types', function () {
     $this->assertDatabaseHas(Product::class, ['id' => $preorder->id, 'stock_quantity' => 10]);
     $this->assertDatabaseCount(InventoryMovement::class, 2);
     $this->getJson(route('v1.inventory.movements.index', ['product_id' => $stocked->id]))
-        ->assertOk()->assertJsonPath('data.0.invoice_id', $invoice->id)->assertJsonPath('data.0.quantity', -5);
+        ->assertOk()
+        ->assertJsonPath('data.0.invoice_id', $invoice->id)
+        ->assertJsonPath('data.0.quantity', -5);
 });
 
 test('rolls back cancellation when restoring stock would overflow', function () {
@@ -196,7 +213,8 @@ test('rolls back cancellation when restoring stock would overflow', function () 
     $this->patchJson(route('v1.inventory.products.update', $product), ['stock_quantity' => 2147483647])->assertOk();
 
     $this->patchJson(route('v1.inventory.invoices.status.update', $invoice), ['status' => 'cancelled'])
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseHas(Invoice::class, ['id' => $invoice->id, 'status' => 'confirmed']);
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 2147483647]);

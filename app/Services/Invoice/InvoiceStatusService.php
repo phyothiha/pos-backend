@@ -20,7 +20,7 @@ class InvoiceStatusService
             $lockedInvoice->load(['items', 'paymentPlatform']);
 
             if ($lockedInvoice->status === $status) {
-                return $lockedInvoice;
+                return $lockedInvoice->load('deliveryStatusHistories.user');
             }
 
             if ($lockedInvoice->status === 'cancelled') {
@@ -37,12 +37,19 @@ class InvoiceStatusService
                 $this->cancel($lockedInvoice, $userId);
             }
 
+            $fromStatus = $lockedInvoice->delivery_status;
             $lockedInvoice->update([
                 'status' => $status,
                 'delivery_status' => $status === 'confirmed' ? 'preparing' : 'cancelled',
             ]);
 
-            return $lockedInvoice;
+            $lockedInvoice->deliveryStatusHistories()->create([
+                'user_id' => $userId,
+                'from_status' => $fromStatus,
+                'to_status' => $lockedInvoice->delivery_status,
+            ]);
+
+            return $lockedInvoice->load('deliveryStatusHistories.user');
         }, 3);
     }
 
@@ -76,6 +83,12 @@ class InvoiceStatusService
             return;
         }
 
+        $this->restoreStock($invoice, $userId, 'cancellation', 'Invoice cancelled');
+    }
+
+    /** Call inside a transaction with the invoice row locked. */
+    public function restoreStock(Invoice $invoice, int $userId, string $type, string $reason): void
+    {
         $sales = InventoryMovement::query()->whereIn('invoice_item_id', $invoice->items->pluck('id'))
             ->where('type', 'sale')->orderBy('id')->get();
         $products = Product::query()->whereIn('id', $sales->pluck('product_id'))
@@ -83,8 +96,8 @@ class InvoiceStatusService
 
         foreach ($sales as $sale) {
             $this->inventoryMovementService->record(
-                $products->get($sale->product_id), -$sale->quantity, 'cancellation',
-                'Invoice cancelled', $userId, $sale->invoice_item_id,
+                $products->get($sale->product_id), -$sale->quantity, $type,
+                $reason, $userId, $sale->invoice_item_id,
             );
         }
     }

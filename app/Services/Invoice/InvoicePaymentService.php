@@ -30,6 +30,10 @@ class InvoicePaymentService
                 return $lockedInvoice->load(['items', 'paymentPlatform']);
             }
 
+            if ($lockedInvoice->payment_type === 'cod' && $lockedInvoice->delivery_status !== 'delivered') {
+                throw ValidationException::withMessages(['payment_status' => 'COD payments can only be recorded after delivery.']);
+            }
+
             $lockedInvoice->update([
                 'payment_status' => 'paid',
                 'payment_platform_id' => $platformId,

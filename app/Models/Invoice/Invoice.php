@@ -35,4 +35,9 @@ class Invoice extends Model
     {
         return $this->belongsTo(PaymentPlatform::class);
     }
+
+    public function deliveryStatusHistories(): HasMany
+    {
+        return $this->hasMany(DeliveryStatusHistory::class)->orderBy('id');
+    }
 }

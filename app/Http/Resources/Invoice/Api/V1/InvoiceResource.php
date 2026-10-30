@@ -24,6 +24,7 @@ class InvoiceResource extends JsonResource
             'payment_platform_id' => $this->payment_platform_id,
             'payment_platform' => new PaymentPlatformResource($this->whenLoaded('paymentPlatform')),
             'delivery_status' => $this->delivery_status,
+            'delivery_status_histories' => DeliveryStatusHistoryResource::collection($this->whenLoaded('deliveryStatusHistories')),
             'subtotal' => $this->subtotal,
             'discount' => $this->discount,
             'delivery_fee' => $this->delivery_fee,

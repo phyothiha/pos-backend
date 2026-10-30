@@ -11,19 +11,6 @@ use Illuminate\Support\Facades\Event;
 
 uses(LazilyRefreshDatabase::class);
 
-function invoicePayload(Product $product, array $overrides = []): array
-{
-    return array_replace([
-        'invoice_date' => '2026-10-30',
-        'customer_name' => 'Test Customer',
-        'customer_phone' => '09123456789',
-        'delivery_phone' => '09987654321',
-        'delivery_address' => 'Yangon',
-        'payment_type' => 'cod',
-        'items' => [['product_id' => $product->id, 'quantity' => 3]],
-    ], $overrides);
-}
-
 test('creates an invoice and calculates totals in whole kyat', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
@@ -43,6 +30,12 @@ test('creates an invoice and calculates totals in whole kyat', function () {
     $response->assertCreated()
         ->assertJsonPath('data.status', 'confirmed')
         ->assertJsonPath('data.delivery_status', 'preparing')
+        ->assertJsonCount(2, 'data.delivery_status_histories')
+        ->assertJsonPath('data.delivery_status_histories.0.from_status', null)
+        ->assertJsonPath('data.delivery_status_histories.0.to_status', 'pending')
+        ->assertJsonPath('data.delivery_status_histories.1.from_status', 'pending')
+        ->assertJsonPath('data.delivery_status_histories.1.to_status', 'preparing')
+        ->assertJsonPath('data.delivery_status_histories.1.user_id', auth('api')->id())
         ->assertJsonPath('data.payment_status', 'unpaid')
         ->assertJsonPath('data.subtotal', 35000)
         ->assertJsonPath('data.grand_total', 36000)
@@ -67,7 +60,9 @@ test('generates unique invoice numbers and defaults optional fees to zero', func
     $first = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product));
     $second = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product));
 
-    $first->assertCreated()->assertJsonPath('data.discount', 0)->assertJsonPath('data.delivery_fee', 0);
+    $first->assertCreated()
+        ->assertJsonPath('data.discount', 0)
+        ->assertJsonPath('data.delivery_fee', 0);
     $second->assertCreated();
     expect($first->json('data.invoice_number'))->toStartWith('INV-')->not->toBe($second->json('data.invoice_number'));
     $this->assertDatabaseCount(Invoice::class, 2);
@@ -107,7 +102,8 @@ test('rejects invalid quantities and decimal fees', function () {
         'discount' => 0.5,
         'delivery_fee' => -1,
         'items' => [['product_id' => $product->id, 'quantity' => 0]],
-    ]))->assertUnprocessable()->assertJsonValidationErrors(['discount', 'delivery_fee', 'items.0.quantity']);
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors(['discount', 'delivery_fee', 'items.0.quantity']);
 
     $this->assertDatabaseEmpty(Invoice::class);
     $this->assertDatabaseEmpty(InvoiceItem::class);
@@ -119,7 +115,8 @@ test('rejects inactive products', function () {
     $product = Product::factory()->create(['is_active' => false]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
-        ->assertUnprocessable()->assertJsonValidationErrors('items.0.product_id');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('items.0.product_id');
 
     $this->assertDatabaseEmpty(Invoice::class);
 });
@@ -134,7 +131,8 @@ test('rejects duplicate products in one invoice', function () {
             ['product_id' => $product->id, 'quantity' => 1],
             ['product_id' => $product->id, 'quantity' => 2],
         ],
-    ]))->assertUnprocessable()->assertJsonValidationErrors('items.0.product_id');
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors('items.0.product_id');
 
     $this->assertDatabaseEmpty(Invoice::class);
 });
@@ -146,7 +144,8 @@ test('does not accept prices supplied by the client', function () {
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product, [
         'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1]],
-    ]))->assertUnprocessable()->assertJsonValidationErrors('items.0');
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors('items.0');
 
     $this->assertDatabaseEmpty(Invoice::class);
 });
@@ -158,9 +157,13 @@ test('lists invoices newest first with pagination', function () {
     $invoices = Invoice::factory()->count(16)->create();
 
     $this->getJson(route('v1.inventory.invoices.index'))
-        ->assertOk()->assertJsonCount(15, 'data')->assertJsonPath('data.0.id', $invoices->last()->id);
+        ->assertOk()
+        ->assertJsonCount(15, 'data')
+        ->assertJsonPath('data.0.id', $invoices->last()->id);
     $this->getJson(route('v1.inventory.invoices.index', ['page' => 2]))
-        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.total', 16);
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.total', 16);
 });
 
 test('returns 404 for an unknown invoice', function () {
@@ -175,7 +178,8 @@ test('prevents deleting products used in invoices', function () {
     $item = InvoiceItem::factory()->create();
 
     $this->deleteJson(route('v1.inventory.products.destroy', $item->product_id))
-        ->assertUnprocessable()->assertJsonValidationErrors('product');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('product');
 
     $this->assertModelExists($item->product);
     $this->assertModelExists($item);
@@ -199,7 +203,7 @@ test('rolls back the invoice if an item cannot be saved', function () {
     }
 });
 
-test('deducts stock immediately for both paid and COD invoices', function (string $paymentType, string $type) {
+test('deducts stock immediately for both paid and COD invoices', function (string $paymentType, string $paymentStatus, string $type) {
     $user = User::factory()->create();
     $this->actingAs($user, 'api');
     $product = Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 5]);
@@ -210,8 +214,9 @@ test('deducts stock immediately for both paid and COD invoices', function (strin
         'payment_platform_id' => $platform->id,
         'status' => 'draft',
         'items' => [['product_id' => $product->id, 'quantity' => 5]],
-    ]))->assertCreated()->assertJsonPath('data.status', 'confirmed')
-        ->assertJsonPath('data.payment_status', $paymentType === 'paid' ? 'paid' : 'unpaid');
+    ]))->assertCreated()
+        ->assertJsonPath('data.status', 'confirmed')
+        ->assertJsonPath('data.payment_status', $paymentStatus);
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 0]);
     $this->assertDatabaseHas(InventoryMovement::class, [
@@ -220,11 +225,15 @@ test('deducts stock immediately for both paid and COD invoices', function (strin
     ]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
     $this->assertDatabaseCount(Invoice::class, 1);
     $this->assertDatabaseCount(InvoiceItem::class, 1);
     $this->assertDatabaseCount(InventoryMovement::class, 1);
-})->with(['paid', 'cod'])->with(['in_stock', 'pre_order']);
+})->with([
+    'paid invoice' => ['paid', 'paid'],
+    'COD invoice' => ['cod', 'unpaid'],
+])->with(['in_stock', 'pre_order']);
 
 test('rolls back invoice creation and all deductions if one item has insufficient stock', function () {
     $this->actingAs(User::factory()->create(), 'api');
@@ -236,7 +245,8 @@ test('rolls back invoice creation and all deductions if one item has insufficien
             ['product_id' => $available->id, 'quantity' => 3],
             ['product_id' => $unavailable->id, 'quantity' => 1],
         ],
-    ]))->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseEmpty(Invoice::class);
     $this->assertDatabaseEmpty(InvoiceItem::class);
@@ -250,7 +260,8 @@ test('creates confirmed pre order invoices and deducts the available quantity', 
     $product = Product::factory()->create(['is_active' => true, 'type' => 'pre_order', 'stock_quantity' => 5]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
-        ->assertCreated()->assertJsonPath('data.status', 'confirmed');
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'confirmed');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 2]);
     $this->assertDatabaseHas(InventoryMovement::class, ['product_id' => $product->id, 'type' => 'sale', 'quantity' => -3, 'balance_after' => 2]);
@@ -297,7 +308,8 @@ test('rejects pre order quantities above the available amount without creating a
     $product = Product::factory()->create(['is_active' => true, 'type' => 'pre_order', 'stock_quantity' => $availableQuantity]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
-        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('stock_quantity');
 
     $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => $availableQuantity]);
     $this->assertDatabaseEmpty(Invoice::class);

@@ -35,7 +35,8 @@ test('creates a brand', function () {
     $this->postJson(route('v1.inventory.brands.store'), [
         'name' => 'Sample Brand',
         'description' => 'Sample description',
-    ])->assertCreated()->assertJsonPath('data.name', 'Sample Brand');
+    ])->assertCreated()
+        ->assertJsonPath('data.name', 'Sample Brand');
 
     $this->assertDatabaseHas(Brand::class, ['name' => 'Sample Brand']);
 });
@@ -57,7 +58,8 @@ test('updates a brand', function () {
     $brand = Brand::factory()->create();
 
     $this->patchJson(route('v1.inventory.brands.update', $brand), ['name' => 'Updated Brand'])
-        ->assertOk()->assertJsonPath('data.name', 'Updated Brand');
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Updated Brand');
 
     $this->assertDatabaseHas(Brand::class, ['id' => $brand->id, 'name' => 'Updated Brand']);
 });
@@ -76,7 +78,8 @@ test('requires a brand name', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->postJson(route('v1.inventory.brands.store'), [])
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 
     $this->assertDatabaseEmpty(Brand::class);
 });
@@ -87,7 +90,8 @@ test('rejects duplicate brand names', function () {
     $brand = Brand::factory()->create();
 
     $this->postJson(route('v1.inventory.brands.store'), ['name' => $brand->name])
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 
     $this->assertDatabaseCount(Brand::class, 1);
 });
@@ -99,7 +103,8 @@ test('searches brands by name prefix', function () {
     Brand::factory()->create(['name' => 'Banana']);
 
     $this->getJson(route('v1.inventory.brands.search', ['name' => 'App']))
-        ->assertOk()->assertJsonPath('data.*.name', ['Apple']);
+        ->assertOk()
+        ->assertJsonPath('data.*.name', ['Apple']);
 });
 
 test('returns 404 for an unknown brand', function () {
@@ -124,5 +129,6 @@ test('requires a name for brands search', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
     $this->getJson(route('v1.inventory.brands.search'))
-        ->assertUnprocessable()->assertJsonValidationErrors('name');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
 });

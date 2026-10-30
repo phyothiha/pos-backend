@@ -66,10 +66,15 @@ class InvoiceService
                 'grand_total' => $grandTotal,
             ]);
             $invoice->items()->createMany($items);
+            $invoice->deliveryStatusHistories()->create([
+                'user_id' => $userId,
+                'from_status' => null,
+                'to_status' => 'pending',
+            ]);
 
             $this->invoiceStatusService->update($invoice, 'confirmed', $userId);
 
-            return $invoice->refresh()->load(['items', 'paymentPlatform']);
+            return $invoice->refresh()->load(['items', 'paymentPlatform', 'deliveryStatusHistories.user']);
         }, 3);
     }
 }

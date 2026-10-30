@@ -6,6 +6,7 @@ use App\Http\Controllers\Inventory\Api\V1\CategoryController;
 use App\Http\Controllers\Inventory\Api\V1\InventoryMovementController;
 use App\Http\Controllers\Inventory\Api\V1\ProductController;
 use App\Http\Controllers\Invoice\Api\V1\InvoiceController;
+use App\Http\Controllers\Invoice\Api\V1\InvoiceDeliveryController;
 use App\Http\Controllers\Invoice\Api\V1\InvoicePaymentController;
 use App\Http\Controllers\Invoice\Api\V1\InvoiceStatusController;
 use App\Http\Controllers\Invoice\Api\V1\PaymentPlatformController;
@@ -41,5 +42,6 @@ Route::prefix('v1')
                 Route::apiResource('payment-platforms', PaymentPlatformController::class)->only(['index', 'store']);
                 Route::patch('invoices/{invoice}/payment', [InvoicePaymentController::class, 'update'])->name('invoices.payment.update');
                 Route::patch('invoices/{invoice}/status', [InvoiceStatusController::class, 'update'])->name('invoices.status.update');
+                Route::patch('invoices/{invoice}/delivery', [InvoiceDeliveryController::class, 'update'])->name('invoices.delivery.update');
             });
     });
