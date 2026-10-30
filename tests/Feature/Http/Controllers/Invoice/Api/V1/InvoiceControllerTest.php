@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Product;
 use App\Models\Invoice\Invoice;
 use App\Models\Invoice\InvoiceItem;
+use App\Models\Invoice\PaymentPlatform;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -25,8 +27,8 @@ function invoicePayload(Product $product, array $overrides = []): array
 test('creates an invoice and calculates totals in whole kyat', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $keyboard = Product::factory()->create(['is_active' => true, 'selling_price' => 15000, 'stock_quantity' => 10]);
-    $mouse = Product::factory()->create(['is_active' => true, 'selling_price' => 5000, 'type' => 'pre_order']);
+    $keyboard = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'selling_price' => 15000, 'stock_quantity' => 10]);
+    $mouse = Product::factory()->create(['is_active' => true, 'selling_price' => 5000, 'type' => 'pre_order', 'stock_quantity' => 5]);
 
     $response = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($keyboard, [
         'discount' => 1000,
@@ -39,7 +41,8 @@ test('creates an invoice and calculates totals in whole kyat', function () {
     ]));
 
     $response->assertCreated()
-        ->assertJsonPath('data.status', 'draft')
+        ->assertJsonPath('data.status', 'confirmed')
+        ->assertJsonPath('data.delivery_status', 'preparing')
         ->assertJsonPath('data.payment_status', 'unpaid')
         ->assertJsonPath('data.subtotal', 35000)
         ->assertJsonPath('data.grand_total', 36000)
@@ -48,13 +51,18 @@ test('creates an invoice and calculates totals in whole kyat', function () {
         ->assertJsonPath('data.items.1.product_type', 'pre_order');
     $this->assertDatabaseHas(Invoice::class, ['id' => $response->json('data.id'), 'grand_total' => 36000]);
     $this->assertDatabaseHas(InvoiceItem::class, ['invoice_id' => $response->json('data.id'), 'product_id' => $keyboard->id, 'unit_price' => 15000, 'line_total' => 30000]);
-    $this->assertDatabaseHas(Product::class, ['id' => $keyboard->id, 'stock_quantity' => 10]);
+    $this->assertDatabaseHas(Product::class, ['id' => $keyboard->id, 'stock_quantity' => 8]);
+    $this->assertDatabaseHas(Product::class, ['id' => $mouse->id, 'stock_quantity' => 4]);
+    $this->assertDatabaseHas(InventoryMovement::class, [
+        'product_id' => $keyboard->id, 'quantity' => -2, 'balance_after' => 8,
+        'type' => 'sale', 'user_id' => auth('api')->id(),
+    ]);
 });
 
 test('generates unique invoice numbers and defaults optional fees to zero', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true, 'selling_price' => 15000]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 10, 'selling_price' => 15000]);
 
     $first = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product));
     $second = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product));
@@ -68,7 +76,7 @@ test('generates unique invoice numbers and defaults optional fees to zero', func
 test('keeps invoice product details and prices after the product changes', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true, 'name' => 'Keyboard', 'sku' => 'KB-001', 'selling_price' => 15000]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 10, 'name' => 'Keyboard', 'sku' => 'KB-001', 'selling_price' => 15000]);
     $created = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))->assertCreated();
     $product->update(['name' => 'New Keyboard', 'sku' => 'KB-002', 'selling_price' => 20000]);
 
@@ -190,3 +198,109 @@ test('rolls back the invoice if an item cannot be saved', function () {
         Event::forget('eloquent.creating: '.InvoiceItem::class);
     }
 });
+
+test('deducts stock immediately for both paid and COD invoices', function (string $paymentType, string $type) {
+    $user = User::factory()->create();
+    $this->actingAs($user, 'api');
+    $product = Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 5]);
+    $platform = PaymentPlatform::factory()->create();
+
+    $response = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product, [
+        'payment_type' => $paymentType,
+        'payment_platform_id' => $platform->id,
+        'status' => 'draft',
+        'items' => [['product_id' => $product->id, 'quantity' => 5]],
+    ]))->assertCreated()->assertJsonPath('data.status', 'confirmed')
+        ->assertJsonPath('data.payment_status', $paymentType === 'paid' ? 'paid' : 'unpaid');
+
+    $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 0]);
+    $this->assertDatabaseHas(InventoryMovement::class, [
+        'invoice_item_id' => $response->json('data.items.0.id'), 'product_id' => $product->id,
+        'type' => 'sale', 'quantity' => -5, 'balance_after' => 0, 'user_id' => $user->id,
+    ]);
+
+    $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
+        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+    $this->assertDatabaseCount(Invoice::class, 1);
+    $this->assertDatabaseCount(InvoiceItem::class, 1);
+    $this->assertDatabaseCount(InventoryMovement::class, 1);
+})->with(['paid', 'cod'])->with(['in_stock', 'pre_order']);
+
+test('rolls back invoice creation and all deductions if one item has insufficient stock', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+    $available = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 10]);
+    $unavailable = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 0]);
+
+    $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($available, [
+        'items' => [
+            ['product_id' => $available->id, 'quantity' => 3],
+            ['product_id' => $unavailable->id, 'quantity' => 1],
+        ],
+    ]))->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+
+    $this->assertDatabaseEmpty(Invoice::class);
+    $this->assertDatabaseEmpty(InvoiceItem::class);
+    $this->assertDatabaseEmpty(InventoryMovement::class);
+    $this->assertDatabaseHas(Product::class, ['id' => $available->id, 'stock_quantity' => 10]);
+    $this->assertDatabaseHas(Product::class, ['id' => $unavailable->id, 'stock_quantity' => 0]);
+});
+
+test('creates confirmed pre order invoices and deducts the available quantity', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'pre_order', 'stock_quantity' => 5]);
+
+    $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
+        ->assertCreated()->assertJsonPath('data.status', 'confirmed');
+
+    $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 2]);
+    $this->assertDatabaseHas(InventoryMovement::class, ['product_id' => $product->id, 'type' => 'sale', 'quantity' => -3, 'balance_after' => 2]);
+});
+
+test('does not deduct again on confirmation and restores stock once when a created invoice is cancelled', function (string $type) {
+    $this->actingAs(User::factory()->create(), 'api');
+    $product = Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 5]);
+    $response = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))->assertCreated();
+    $invoiceId = $response->json('data.id');
+
+    $this->patchJson(route('v1.inventory.invoices.status.update', $invoiceId), ['status' => 'confirmed'])->assertOk();
+    $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 2]);
+    $this->assertDatabaseCount(InventoryMovement::class, 1);
+
+    $this->patchJson(route('v1.inventory.invoices.status.update', $invoiceId), ['status' => 'cancelled'])->assertOk();
+    $this->patchJson(route('v1.inventory.invoices.status.update', $invoiceId), ['status' => 'cancelled'])->assertOk();
+
+    $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 5]);
+    $this->assertDatabaseCount(InventoryMovement::class, 2);
+})->with(['in_stock', 'pre_order']);
+
+test('rolls back invoice creation and stock when its movement cannot be saved', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 5]);
+    Event::listen('eloquent.creating: '.InventoryMovement::class, function (): void {
+        throw new RuntimeException('Movement save failed.');
+    });
+
+    try {
+        $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))->assertInternalServerError();
+
+        $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => 5]);
+        $this->assertDatabaseEmpty(Invoice::class);
+        $this->assertDatabaseEmpty(InvoiceItem::class);
+        $this->assertDatabaseEmpty(InventoryMovement::class);
+    } finally {
+        Event::forget('eloquent.creating: '.InventoryMovement::class);
+    }
+});
+
+test('rejects pre order quantities above the available amount without creating an invoice', function (int $availableQuantity) {
+    $this->actingAs(User::factory()->create(), 'api');
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'pre_order', 'stock_quantity' => $availableQuantity]);
+
+    $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
+        ->assertUnprocessable()->assertJsonValidationErrors('stock_quantity');
+
+    $this->assertDatabaseHas(Product::class, ['id' => $product->id, 'stock_quantity' => $availableQuantity]);
+    $this->assertDatabaseEmpty(Invoice::class);
+    $this->assertDatabaseEmpty(InvoiceItem::class);
+    $this->assertDatabaseEmpty(InventoryMovement::class);
+})->with([0, 2]);

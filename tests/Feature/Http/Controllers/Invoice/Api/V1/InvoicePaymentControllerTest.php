@@ -24,7 +24,7 @@ function paymentInvoicePayload(Product $product): array
 test('creates a paid invoice with the selected platform', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 5]);
     $platform = PaymentPlatform::factory()->create(['name' => 'KBZPay']);
 
     $response = $this->postJson(route('v1.inventory.invoices.store'), [
@@ -39,7 +39,7 @@ test('creates a paid invoice with the selected platform', function () {
 test('requires a payment platform for paid invoices', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 5]);
 
     $this->postJson(route('v1.inventory.invoices.store'), paymentInvoicePayload($product))
         ->assertUnprocessable()->assertJsonValidationErrors('payment_platform_id');
@@ -50,7 +50,7 @@ test('requires a payment platform for paid invoices', function () {
 test('rejects an unknown payment platform', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 5]);
 
     $this->postJson(route('v1.inventory.invoices.store'), [
         ...paymentInvoicePayload($product),
@@ -63,7 +63,7 @@ test('rejects an unknown payment platform', function () {
 test('keeps COD unpaid until money is collected', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $product = Product::factory()->create(['is_active' => true]);
+    $product = Product::factory()->create(['is_active' => true, 'type' => 'in_stock', 'stock_quantity' => 5]);
 
     $response = $this->postJson(route('v1.inventory.invoices.store'), [
         ...paymentInvoicePayload($product),

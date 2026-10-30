@@ -129,8 +129,8 @@ test('returns 404 for an unknown product', function () {
 test('searches products by name or SKU', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $keyboard = Product::factory()->create(['is_active' => true, 'name' => 'Wireless Keyboard', 'sku' => 'KB-001']);
-    $mouse = Product::factory()->create(['is_active' => true, 'name' => 'Mouse', 'sku' => 'MS-001']);
+    $keyboard = Product::factory()->create(['is_active' => true, 'stock_quantity' => 10, 'name' => 'Wireless Keyboard', 'sku' => 'KB-001']);
+    $mouse = Product::factory()->create(['is_active' => true, 'stock_quantity' => 10, 'name' => 'Mouse', 'sku' => 'MS-001']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Keyboard']))
         ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $keyboard->id);
@@ -141,7 +141,7 @@ test('searches products by name or SKU', function () {
 test('returns at most ten product search results without pagination', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    Product::factory()->count(12)->create(['is_active' => true, 'name' => 'Keyboard']);
+    Product::factory()->count(12)->create(['is_active' => true, 'stock_quantity' => 10, 'name' => 'Keyboard']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Keyboard']))
         ->assertOk()
@@ -153,7 +153,7 @@ test('returns at most ten product search results without pagination', function (
 test('excludes inactive products from name and SKU search results', function () {
     $this->actingAs(User::factory()->create(), 'api');
 
-    $active = Product::factory()->create(['is_active' => true, 'name' => 'Keyboard']);
+    $active = Product::factory()->create(['is_active' => true, 'stock_quantity' => 10, 'name' => 'Keyboard']);
     Product::factory()->create(['name' => 'Keyboard Case', 'is_active' => false]);
     Product::factory()->create(['name' => 'Adapter', 'sku' => 'Keyboard-001', 'is_active' => false]);
 
@@ -176,3 +176,14 @@ test('returns an empty list when no products match', function () {
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Mouse']))
         ->assertOk()->assertExactJson(['data' => []]);
 });
+
+test('search returns only active products with available quantity for either type', function (string $type) {
+    $this->actingAs(User::factory()->create(), 'api');
+    $available = Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 1, 'name' => 'Phone Available']);
+    Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 0, 'name' => 'Phone Sold Out']);
+    Product::factory()->create(['is_active' => true, 'type' => $type, 'stock_quantity' => 0, 'name' => 'Adapter', 'sku' => 'Phone-001']);
+    Product::factory()->create(['is_active' => false, 'type' => $type, 'stock_quantity' => 10, 'name' => 'Phone Inactive']);
+
+    $this->getJson(route('v1.inventory.products.search', ['q' => 'Phone']))
+        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $available->id);
+})->with(['in_stock', 'pre_order']);

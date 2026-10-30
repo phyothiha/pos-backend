@@ -20,7 +20,7 @@ class InvoiceController extends Controller
 
     public function store(StoreInvoiceRequest $request): InvoiceResource
     {
-        return new InvoiceResource($this->invoiceService->create($request->validated()));
+        return new InvoiceResource($this->invoiceService->create($request->validated(), $request->user()->id));
     }
 
     public function show(Invoice $invoice): InvoiceResource

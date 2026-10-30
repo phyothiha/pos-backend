@@ -28,7 +28,7 @@ class ProductController extends Controller
 
     public function store(StoreProductRequest $request): ProductResource
     {
-        return new ProductResource($this->productService->create($request->validated()));
+        return new ProductResource($this->productService->create($request->validated(), $request->user()->id));
     }
 
     public function show(Product $product): ProductResource
@@ -38,7 +38,7 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product): ProductResource
     {
-        return new ProductResource($this->productService->update($product, $request->validated()));
+        return new ProductResource($this->productService->update($product, $request->validated(), $request->user()->id));
     }
 
     public function destroy(Product $product): Response

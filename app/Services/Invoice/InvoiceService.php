@@ -11,16 +11,19 @@ use Illuminate\Support\Str;
 
 class InvoiceService
 {
+    public function __construct(private readonly InvoiceStatusService $invoiceStatusService) {}
+
     public function paginate(): LengthAwarePaginator
     {
         return Invoice::query()->with(['items', 'paymentPlatform'])->latest()->orderByDesc('id')->paginate(15);
     }
 
-    public function create(array $data): Invoice
+    public function create(array $data, int $userId): Invoice
     {
-        return DB::transaction(function () use ($data): Invoice {
+        return DB::transaction(function () use ($data, $userId): Invoice {
             $products = Product::query()
                 ->whereIn('id', array_column($data['items'], 'product_id'))
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
             $subtotal = 0;
@@ -64,7 +67,9 @@ class InvoiceService
             ]);
             $invoice->items()->createMany($items);
 
-            return $invoice->load(['items', 'paymentPlatform']);
+            $this->invoiceStatusService->update($invoice, 'confirmed', $userId);
+
+            return $invoice->refresh()->load(['items', 'paymentPlatform']);
         }, 3);
     }
 }

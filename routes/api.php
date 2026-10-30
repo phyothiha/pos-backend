@@ -3,9 +3,11 @@
 use App\Http\Controllers\Auth\Api\V1\AuthController;
 use App\Http\Controllers\Inventory\Api\V1\BrandController;
 use App\Http\Controllers\Inventory\Api\V1\CategoryController;
+use App\Http\Controllers\Inventory\Api\V1\InventoryMovementController;
 use App\Http\Controllers\Inventory\Api\V1\ProductController;
 use App\Http\Controllers\Invoice\Api\V1\InvoiceController;
 use App\Http\Controllers\Invoice\Api\V1\InvoicePaymentController;
+use App\Http\Controllers\Invoice\Api\V1\InvoiceStatusController;
 use App\Http\Controllers\Invoice\Api\V1\PaymentPlatformController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,8 +36,10 @@ Route::prefix('v1')
                 Route::apiResource('categories', CategoryController::class);
                 Route::apiResource('brands', BrandController::class);
                 Route::apiResource('products', ProductController::class);
+                Route::apiResource('movements', InventoryMovementController::class)->only(['index']);
                 Route::apiResource('invoices', InvoiceController::class)->only(['index', 'store', 'show']);
                 Route::apiResource('payment-platforms', PaymentPlatformController::class)->only(['index', 'store']);
                 Route::patch('invoices/{invoice}/payment', [InvoicePaymentController::class, 'update'])->name('invoices.payment.update');
+                Route::patch('invoices/{invoice}/status', [InvoiceStatusController::class, 'update'])->name('invoices.status.update');
             });
     });

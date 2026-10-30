@@ -29,7 +29,7 @@ class StoreProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['required', 'string', 'max:100', 'unique:products,sku'],
             'selling_price' => ['required', 'integer', 'min:0'],
-            'stock_quantity' => ['sometimes', 'integer', 'min:0'],
+            'stock_quantity' => ['sometimes', 'integer', 'min:0', 'max:2147483647'],
             'type' => ['sometimes', 'required', Rule::in(['in_stock', 'pre_order'])],
             'is_active' => ['required', 'boolean'],
         ];
