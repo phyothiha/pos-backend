@@ -3,6 +3,7 @@
 use App\Models\Inventory\Product;
 use App\Models\Invoice\Invoice;
 use App\Models\Invoice\PaymentPlatform;
+use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
@@ -21,6 +22,8 @@ function paymentInvoicePayload(Product $product): array
 }
 
 test('creates a paid invoice with the selected platform', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
     $platform = PaymentPlatform::factory()->create(['name' => 'KBZPay']);
 
@@ -34,6 +37,8 @@ test('creates a paid invoice with the selected platform', function () {
 });
 
 test('requires a payment platform for paid invoices', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $this->postJson(route('v1.inventory.invoices.store'), paymentInvoicePayload($product))
@@ -43,6 +48,8 @@ test('requires a payment platform for paid invoices', function () {
 });
 
 test('rejects an unknown payment platform', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $this->postJson(route('v1.inventory.invoices.store'), [
@@ -54,6 +61,8 @@ test('rejects an unknown payment platform', function () {
 });
 
 test('keeps COD unpaid until money is collected', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $response = $this->postJson(route('v1.inventory.invoices.store'), [
@@ -67,6 +76,8 @@ test('keeps COD unpaid until money is collected', function () {
 });
 
 test('records a collected COD payment without changing the invoice total', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $invoice = Invoice::factory()->create(['grand_total' => 15000]);
 
     $this->patchJson(route('v1.inventory.invoices.payment.update', $invoice), ['payment_status' => 'paid'])
@@ -76,6 +87,8 @@ test('records a collected COD payment without changing the invoice total', funct
 });
 
 test('records the platform for an electronic COD payment', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $invoice = Invoice::factory()->create();
     $platform = PaymentPlatform::factory()->create();
 
@@ -88,6 +101,8 @@ test('records the platform for an electronic COD payment', function () {
 });
 
 test('does not change an already recorded payment', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->freezeTime();
     $invoice = Invoice::factory()->paid()->create();
     $updatedAt = $invoice->updated_at->toISOString();
@@ -98,6 +113,8 @@ test('does not change an already recorded payment', function () {
 });
 
 test('rejects changing the platform of a recorded payment', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $invoice = Invoice::factory()->paid()->create();
     $other = PaymentPlatform::factory()->create();
 
@@ -110,6 +127,8 @@ test('rejects changing the platform of a recorded payment', function () {
 });
 
 test('rejects payments for cancelled invoices', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $invoice = Invoice::factory()->create(['status' => 'cancelled']);
 
     $this->patchJson(route('v1.inventory.invoices.payment.update', $invoice), ['payment_status' => 'paid'])

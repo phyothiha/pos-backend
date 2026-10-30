@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\Api\V1\AuthController;
 use App\Http\Controllers\Inventory\Api\V1\BrandController;
 use App\Http\Controllers\Inventory\Api\V1\CategoryController;
 use App\Http\Controllers\Inventory\Api\V1\ProductController;
@@ -11,7 +12,15 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')
     ->name('v1.')
     ->group(function () {
+        Route::prefix('auth')->name('auth.')->group(function () {
+            Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login');
+            Route::post('refresh', [AuthController::class, 'refresh'])->middleware('throttle:30,1')->name('refresh');
+            Route::get('me', [AuthController::class, 'me'])->middleware('auth:api')->name('me');
+            Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:api')->name('logout');
+        });
+
         Route::prefix('inventory')
+            ->middleware('auth:api')
             ->name('inventory.')
             ->group(function () {
                 Route::get('categories/all', [CategoryController::class, 'all'])->name('categories.all');

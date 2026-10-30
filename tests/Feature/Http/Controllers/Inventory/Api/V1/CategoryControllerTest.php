@@ -1,11 +1,14 @@
 <?php
 
 use App\Models\Inventory\Category;
+use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
 
 test('lists categories with pagination', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Category::factory()->count(16)->create();
 
     $this->getJson(route('v1.inventory.categories.index', ['page' => 2]))
@@ -16,6 +19,8 @@ test('lists categories with pagination', function () {
 });
 
 test('returns all categories for dropdowns', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Category::factory()->count(16)->create();
 
     $this->getJson(route('v1.inventory.categories.all'))
@@ -25,6 +30,8 @@ test('returns all categories for dropdowns', function () {
 });
 
 test('creates a category', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->postJson(route('v1.inventory.categories.store'), [
         'name' => 'Sample Category',
         'description' => 'Sample description',
@@ -34,6 +41,8 @@ test('creates a category', function () {
 });
 
 test('shows a category', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $category = Category::factory()->create();
 
     $this->getJson(route('v1.inventory.categories.show', $category))
@@ -43,6 +52,8 @@ test('shows a category', function () {
 });
 
 test('updates a category', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $category = Category::factory()->create();
 
     $this->patchJson(route('v1.inventory.categories.update', $category), ['name' => 'Updated Category'])
@@ -52,6 +63,8 @@ test('updates a category', function () {
 });
 
 test('deletes a category', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $category = Category::factory()->create();
 
     $this->deleteJson(route('v1.inventory.categories.destroy', $category))->assertNoContent();
@@ -60,6 +73,8 @@ test('deletes a category', function () {
 });
 
 test('requires a category name', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->postJson(route('v1.inventory.categories.store'), [])
         ->assertUnprocessable()->assertJsonValidationErrors('name');
 
@@ -67,6 +82,8 @@ test('requires a category name', function () {
 });
 
 test('rejects duplicate category names', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $category = Category::factory()->create();
 
     $this->postJson(route('v1.inventory.categories.store'), ['name' => $category->name])
@@ -76,6 +93,8 @@ test('rejects duplicate category names', function () {
 });
 
 test('searches categories by name prefix', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Category::factory()->create(['name' => 'Apple']);
     Category::factory()->create(['name' => 'Banana']);
 
@@ -84,10 +103,14 @@ test('searches categories by name prefix', function () {
 });
 
 test('returns 404 for an unknown category', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->getJson(route('v1.inventory.categories.show', 999999))->assertNotFound();
 });
 
 test('returns at most ten categories search results without pagination', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Category::factory()->count(12)->sequence(fn ($sequence) => ['name' => 'Sample '.$sequence->index])->create();
 
     $this->getJson(route('v1.inventory.categories.search', ['name' => 'Sample']))
@@ -98,6 +121,8 @@ test('returns at most ten categories search results without pagination', functio
 });
 
 test('requires a name for categories search', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->getJson(route('v1.inventory.categories.search'))
         ->assertUnprocessable()->assertJsonValidationErrors('name');
 });

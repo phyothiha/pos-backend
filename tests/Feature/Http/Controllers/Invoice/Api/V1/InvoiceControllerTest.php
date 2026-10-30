@@ -3,6 +3,7 @@
 use App\Models\Inventory\Product;
 use App\Models\Invoice\Invoice;
 use App\Models\Invoice\InvoiceItem;
+use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Event;
 
@@ -22,6 +23,8 @@ function invoicePayload(Product $product, array $overrides = []): array
 }
 
 test('creates an invoice and calculates totals in whole kyat', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $keyboard = Product::factory()->create(['is_active' => true, 'selling_price' => 15000, 'stock_quantity' => 10]);
     $mouse = Product::factory()->create(['is_active' => true, 'selling_price' => 5000, 'type' => 'pre_order']);
 
@@ -49,6 +52,8 @@ test('creates an invoice and calculates totals in whole kyat', function () {
 });
 
 test('generates unique invoice numbers and defaults optional fees to zero', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true, 'selling_price' => 15000]);
 
     $first = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product));
@@ -61,6 +66,8 @@ test('generates unique invoice numbers and defaults optional fees to zero', func
 });
 
 test('keeps invoice product details and prices after the product changes', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true, 'name' => 'Keyboard', 'sku' => 'KB-001', 'selling_price' => 15000]);
     $created = $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))->assertCreated();
     $product->update(['name' => 'New Keyboard', 'sku' => 'KB-002', 'selling_price' => 20000]);
@@ -74,6 +81,8 @@ test('keeps invoice product details and prices after the product changes', funct
 });
 
 test('requires customer details and invoice items', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->postJson(route('v1.inventory.invoices.store'), [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['invoice_date', 'customer_name', 'customer_phone', 'delivery_phone', 'delivery_address', 'payment_type', 'items']);
@@ -82,6 +91,8 @@ test('requires customer details and invoice items', function () {
 });
 
 test('rejects invalid quantities and decimal fees', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product, [
@@ -95,6 +106,8 @@ test('rejects invalid quantities and decimal fees', function () {
 });
 
 test('rejects inactive products', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => false]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product))
@@ -104,6 +117,8 @@ test('rejects inactive products', function () {
 });
 
 test('rejects duplicate products in one invoice', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product, [
@@ -117,6 +132,8 @@ test('rejects duplicate products in one invoice', function () {
 });
 
 test('does not accept prices supplied by the client', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
 
     $this->postJson(route('v1.inventory.invoices.store'), invoicePayload($product, [
@@ -127,6 +144,8 @@ test('does not accept prices supplied by the client', function () {
 });
 
 test('lists invoices newest first with pagination', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->freezeTime();
     $invoices = Invoice::factory()->count(16)->create();
 
@@ -137,10 +156,14 @@ test('lists invoices newest first with pagination', function () {
 });
 
 test('returns 404 for an unknown invoice', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->getJson(route('v1.inventory.invoices.show', 999999))->assertNotFound();
 });
 
 test('prevents deleting products used in invoices', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $item = InvoiceItem::factory()->create();
 
     $this->deleteJson(route('v1.inventory.products.destroy', $item->product_id))
@@ -151,6 +174,8 @@ test('prevents deleting products used in invoices', function () {
 });
 
 test('rolls back the invoice if an item cannot be saved', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['is_active' => true]);
     Event::listen('eloquent.creating: '.InvoiceItem::class, function (): void {
         throw new RuntimeException('Item save failed.');

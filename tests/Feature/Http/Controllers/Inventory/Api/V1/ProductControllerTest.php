@@ -3,11 +3,14 @@
 use App\Models\Inventory\Brand;
 use App\Models\Inventory\Category;
 use App\Models\Inventory\Product;
+use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
 
 test('lists products with pagination', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Product::factory()->count(16)->create();
 
     $this->getJson(route('v1.inventory.products.index', ['page' => 2]))
@@ -15,6 +18,8 @@ test('lists products with pagination', function () {
 });
 
 test('creates a product with its price in whole kyat', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $category = Category::factory()->create();
     $brand = Brand::factory()->create();
 
@@ -37,6 +42,8 @@ test('creates a product with its price in whole kyat', function () {
 });
 
 test('shows a product', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['selling_price' => 15000]);
 
     $this->getJson(route('v1.inventory.products.show', $product))
@@ -44,6 +51,8 @@ test('shows a product', function () {
 });
 
 test('updates a product', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create();
 
     $this->patchJson(route('v1.inventory.products.update', $product), [
@@ -56,6 +65,8 @@ test('updates a product', function () {
 });
 
 test('deletes a product that has no invoices', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create();
 
     $this->deleteJson(route('v1.inventory.products.destroy', $product))->assertNoContent();
@@ -64,6 +75,8 @@ test('deletes a product that has no invoices', function () {
 });
 
 test('requires product details', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->postJson(route('v1.inventory.products.store'), [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['category_id', 'brand_id', 'name', 'sku', 'selling_price', 'is_active']);
@@ -72,6 +85,8 @@ test('requires product details', function () {
 });
 
 test('rejects decimal and negative product prices', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create(['selling_price' => 15000]);
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['selling_price' => 15000.5])
@@ -83,6 +98,8 @@ test('rejects decimal and negative product prices', function () {
 });
 
 test('rejects duplicate product SKUs', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create();
     $other = Product::factory()->create();
 
@@ -93,6 +110,8 @@ test('rejects duplicate product SKUs', function () {
 });
 
 test('rejects unknown categories and brands', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $product = Product::factory()->create();
 
     $this->patchJson(route('v1.inventory.products.update', $product), ['category_id' => 999999, 'brand_id' => 999999])
@@ -102,10 +121,14 @@ test('rejects unknown categories and brands', function () {
 });
 
 test('returns 404 for an unknown product', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->getJson(route('v1.inventory.products.show', 999999))->assertNotFound();
 });
 
 test('searches products by name or SKU', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $keyboard = Product::factory()->create(['is_active' => true, 'name' => 'Wireless Keyboard', 'sku' => 'KB-001']);
     $mouse = Product::factory()->create(['is_active' => true, 'name' => 'Mouse', 'sku' => 'MS-001']);
 
@@ -116,6 +139,8 @@ test('searches products by name or SKU', function () {
 });
 
 test('returns at most ten product search results without pagination', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Product::factory()->count(12)->create(['is_active' => true, 'name' => 'Keyboard']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Keyboard']))
@@ -126,6 +151,8 @@ test('returns at most ten product search results without pagination', function (
 });
 
 test('excludes inactive products from name and SKU search results', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $active = Product::factory()->create(['is_active' => true, 'name' => 'Keyboard']);
     Product::factory()->create(['name' => 'Keyboard Case', 'is_active' => false]);
     Product::factory()->create(['name' => 'Adapter', 'sku' => 'Keyboard-001', 'is_active' => false]);
@@ -135,11 +162,15 @@ test('excludes inactive products from name and SKU search results', function () 
 });
 
 test('requires a product search term', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     $this->getJson(route('v1.inventory.products.search'))
         ->assertUnprocessable()->assertJsonValidationErrors('q');
 });
 
 test('returns an empty list when no products match', function () {
+    $this->actingAs(User::factory()->create(), 'api');
+
     Product::factory()->create(['name' => 'Keyboard', 'sku' => 'KB-001']);
 
     $this->getJson(route('v1.inventory.products.search', ['q' => 'Mouse']))
