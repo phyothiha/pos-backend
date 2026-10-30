@@ -24,10 +24,10 @@ class ProductFactory extends Factory
             'brand_id' => Brand::factory(),
             'name' => fake()->words(3, true),
             'sku' => fake()->unique()->bothify('SKU-########'),
-            'selling_price' => fake()->randomFloat(2, 0, 100000),
-            'stock_quantity' => 0,
-            'type' => 'in_stock',
-            'is_active' => true,
+            'selling_price' => fake()->numberBetween(0, 100000),
+            'stock_quantity' => fake()->numberBetween(0, 100),
+            'type' => fake()->randomElement(['in_stock', 'pre_order']),
+            'is_active' => fake()->boolean(80),
         ];
     }
 }

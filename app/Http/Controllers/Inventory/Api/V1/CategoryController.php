@@ -6,29 +6,29 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\Api\V1\SearchInventoryRequest;
 use App\Http\Requests\Inventory\Api\V1\StoreCategoryRequest;
 use App\Http\Requests\Inventory\Api\V1\UpdateCategoryRequest;
-use App\Http\Resources\Inventory\Api\V1\CategoryCollection;
 use App\Http\Resources\Inventory\Api\V1\CategoryResource;
 use App\Models\Inventory\Category;
 use App\Services\Inventory\CategoryService;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class CategoryController extends Controller
 {
     public function __construct(private readonly CategoryService $categoryService) {}
 
-    public function all(): CategoryCollection
+    public function all(): AnonymousResourceCollection
     {
-        return new CategoryCollection($this->categoryService->all());
+        return CategoryResource::collection($this->categoryService->all());
     }
 
-    public function index(): CategoryCollection
+    public function index(): AnonymousResourceCollection
     {
-        return new CategoryCollection($this->categoryService->paginate());
+        return CategoryResource::collection($this->categoryService->paginate());
     }
 
-    public function search(SearchInventoryRequest $request): CategoryCollection
+    public function search(SearchInventoryRequest $request): AnonymousResourceCollection
     {
-        return new CategoryCollection($this->categoryService->search($request->validated('name')));
+        return CategoryResource::collection($this->categoryService->search($request->validated('name')));
     }
 
     public function store(StoreCategoryRequest $request): CategoryResource

@@ -18,13 +18,13 @@ class CategoryService
         return Category::query()->latest()->paginate(15);
     }
 
-    public function search(string $name): LengthAwarePaginator
+    public function search(string $name): Collection
     {
         return Category::query()
             ->where('name', 'like', $name.'%')
             ->orderBy('id')
-            ->paginate(15)
-            ->appends(['name' => $name]);
+            ->limit(10)
+            ->get();
     }
 
     public function create(array $data): Category

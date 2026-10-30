@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\Api\V1\SearchProductRequest;
 use App\Http\Requests\Inventory\Api\V1\StoreProductRequest;
 use App\Http\Requests\Inventory\Api\V1\UpdateProductRequest;
 use App\Http\Resources\Inventory\Api\V1\ProductResource;
@@ -18,6 +19,11 @@ class ProductController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ProductResource::collection($this->productService->paginate());
+    }
+
+    public function search(SearchProductRequest $request): AnonymousResourceCollection
+    {
+        return ProductResource::collection($this->productService->search($request->validated('q')));
     }
 
     public function store(StoreProductRequest $request): ProductResource

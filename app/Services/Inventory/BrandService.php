@@ -18,13 +18,13 @@ class BrandService
         return Brand::query()->latest()->paginate(15);
     }
 
-    public function search(string $name): LengthAwarePaginator
+    public function search(string $name): Collection
     {
         return Brand::query()
             ->where('name', 'like', $name.'%')
             ->orderBy('id')
-            ->paginate(1)
-            ->appends(['name' => $name]);
+            ->limit(10)
+            ->get();
     }
 
     public function create(array $data): Brand
